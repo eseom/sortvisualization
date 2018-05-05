@@ -1,71 +1,52 @@
-import React from 'react'
-import { render } from 'react-dom';
+
+/* eslint-disable jsx-a11y/label-has-for */
+
+import React, { Component } from 'react'
 import _ from 'lodash'
+import { Stage, Layer, Rect } from 'react-konva'
 
-import { Component } from 'react'
-import { Stage, Layer, Rect, Text } from 'react-konva';
+import './lib/require'
 
-const delay = 100
+const methods = {
+  bubble: require('./lib/sorts/bubble').default,
+  selection: require('./lib/sorts/selection').default,
+  insertion: require('./lib/sorts/insertion').default,
 
-Array.prototype.shuffle = function () {
-  const input = this;
-  for (let i = input.length - 1; i >= 0; i--) {
-    const randomIndex = Math.floor(Math.random() * (i + 1))
-    const itemAtIndex = input[randomIndex]
-    input[randomIndex] = input[i]
-    input[i] = itemAtIndex
-  }
-  return input
+  merge: require('./lib/sorts/merge').default,
 }
-
-const selection = async (haystack) => {
-  const count = haystack.length
-  for (let i = 0; i < count; i += 1) {
-    let current = i
-    for (let j = i + 1; j < count; j += 1) {
-      if (haystack.compare(current, j)) {
-        current = j
-      }
-    }
-    if (haystack.compare(i, current))
-      haystack.swap(i, current)
-  }
-}
-
-const bubble = async (haystack) => {
-  for (let j = haystack.length; j >= 0; j -= 1)
-    for (let i = 0; i < j - 1; i += 1)
-      if (haystack.compare(i, i + 1)) {
-        haystack.swap(i, i + 1)
-      }
-}
+const DELAY = 50
+const COUNT = 81
 
 export default class extends Component {
   constructor(props) {
     super(props)
-    const count = 150
+    const count = COUNT
 
     this.state = {
-      color: 'black',
-      stageWidth: 0,
-      stageWeight: 0,
-      haystack: [...Array(count).keys()].map(t => t + 1).shuffle(),
+      color: '#444',
+      haystack: Array.init([...Array(count).keys()].map(t => t + 1)).shuffle(),
       count,
+      replaceCount: 0,
       swapCount: 0,
       compareCount: 0,
       compareL: undefined,
       compareR: undefined,
 
-      shuffleDisabled: false,
+      stageWidth: 0,
+      stageHeight: 0,
+
+      disabledExceptStop: false,
+      method: 'bubble',
+      message: 'ready',
     }
     this.start = this.start.bind(this)
+    this.handleMethodChange = this.handleMethodChange.bind(this)
   }
 
   componentDidMount() {
-    this.w = window
-    this.setState({
-      stageWidth: this.w.innerWidth,
-      stageHeight: this.w.innerHeight,
+    this.setState({ // eslint-disable-line react/no-did-mount-set-state
+      stageWidth: window.innerWidth,
+      stageHeight: window.innerHeight,
     })
   }
 
@@ -76,14 +57,16 @@ export default class extends Component {
 
     const {
       color,
-      stageWidth,
-      stageHeight,
       haystack,
       count,
+      replaceCount,
       swapCount,
       compareCount,
       compareL,
       compareR,
+      stageWidth,
+      stageHeight,
+      disabledExceptStop,
     } = this.state
 
     if (haystack.length === 0) {
@@ -93,60 +76,58 @@ export default class extends Component {
       <div>
         <h1>Sort Visualization</h1>
         <style jsx>{`
-.button {
-  cursor: pointer;
-  display: inline-block;
-  font-family: 'Gotham SSm',sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  letter-spacing: .091em;
-  line-height: 1em;
-  border-style: solid;
-  border-width: 1.1px;
-  border-radius: 0;
-  padding: 1.8em 3.6em;
-  text-align: center;
-  text-rendering: optimizeLegibility;
-  text-transform: uppercase;
-  -webkit-font-smoothing: antialiased;
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  -webkit-transition: opacity 300ms cubic-bezier(.694,0,.335,1),background-color 300ms cubic-bezier(.694,0,.335,1),color 300ms cubic-bezier(.694,0,.335,1);
-  -o-transition: opacity 300ms cubic-bezier(.694,0,.335,1),background-color 300ms cubic-bezier(.694,0,.335,1),color 300ms cubic-bezier(.694,0,.335,1);
-  transition: opacity 300ms cubic-bezier(.694,0,.335,1),background-color 300ms cubic-bezier(.694,0,.335,1),color 300ms cubic-bezier(.694,0,.335,1);
-  color: #fff;
-  background-color: #000;
-  border-color: #000;
-}
     `}</style>
         <div style={{ marginBottom: 10 }}>
-          <button onClick={() => { this.start() }} className="button">Start</button>
-          <button disabled={this.state.shuffleDisabled} onClick={() => { this.shuffle() }} className="button">Shuffle</button>
+          <button
+            disabled={this.state.disabledExceptStop}
+            onClick={() => { this.start() }}
+          >Start</button>
+          <button
+            disabled={this.state.disabledExceptStop}
+            onClick={() => { this.shuffle() }}
+          >Shuffle</button>
         </div>
+        <p>
+          <label>Sort method</label>&nbsp;&nbsp;&nbsp;&nbsp;
+          {Object.keys(methods).map(method =>
+            <label key={method}>
+              <input
+                type="radio"
+                name="method"
+                value={method}
+                disabled={disabledExceptStop}
+                checked={method === this.state.method}
+                onChange={this.handleMethodChange}
+              />
+              {method} &nbsp;
+            </label>,
+          )}
+        </p>
         <div style={{ marginBottom: 10 }}>
-          <div>number of elements: {count}</div>
-          <div>swap count: {swapCount}</div>
-          <div>compare count: {compareCount}</div>
+          <p>{this.state.message}</p>
+          <div><small>number of elements: {count}</small></div>
+          <div><small>replace count: {replaceCount}</small></div>
+          <div><small>swap count: {swapCount}</small></div>
+          <div><small>compare count: {compareCount}</small></div>
         </div>
         <Stage width={stageWidth} height={stageHeight}>
           <Layer>
-            {haystack.map((number, index) => {
+            {haystack.map((element, index) => {
               let fill = color
               if (compareL === index) {
-                fill = 'red'
+                fill = 'magenta'
               } else if (compareR === index) {
-                fill = 'red'
+                fill = 'magenta'
               }
               return (
                 <Rect
-                  key={number}
-                  x={0 + index * gap}
+                  key={element.value}
+                  x={0 + (index * gap)}
                   y={0}
                   width={width}
-                  height={heightRule * number}
+                  height={heightRule * element.value}
                   fill={fill}
                   shadowBlur={0}
-                  onClick={this.handleClick}
                 />
               )
             })}
@@ -162,35 +143,30 @@ export default class extends Component {
     })
   }
 
+  handleMethodChange(changeEvent) {
+    this.setState({
+      method: changeEvent.target.value,
+    })
+  }
+
   start() {
     this.setState({
-      shuffleDisabled: true,
+      disabledExceptStop: true,
+      swapCount: 0,
+      compareCount: 0,
     })
     const tempHaystack = _.cloneDeep(this.state.haystack)
     const { haystack } = this.state
-    const playbook = []
 
-    Array.prototype.swap = function (x, y) {
-      var b = this[x];
-      this[x] = this[y];
-      this[y] = b;
-      playbook.push({ type: 'swap', x, y })
-      return this;
-    }
+    // sort!
+    const b = window.performance.now()
+    methods[this.state.method].sort(tempHaystack)
+    this.setState({
+      message: `the sorting takes ${window.performance.now() - b} miliseconds`,
+    })
 
-    Array.prototype.compare = function (x, y) {
-      playbook.push({ type: 'compare', x, y })
-      return this[x] > this[y]
-    }
-
-    // bubble(tempHaystack)
-    console.time()
-    selection(tempHaystack)
-    console.timeEnd()
-
-
-    // draw
-    playbook.forEach((p, index) => {
+    // draw!
+    haystack.playbook.forEach((p, index) => {
       setTimeout(() => {
         if (p.type === 'compare') {
           this.setState({
@@ -202,21 +178,25 @@ export default class extends Component {
           this.setState({
             swapCount: this.state.swapCount + 1,
           })
-          const b = haystack[p.x]
+          const o = haystack[p.x]
           haystack[p.x] = haystack[p.y]
-          haystack[p.y] = b
+          haystack[p.y] = o
+        } else if (p.type === 'replace') {
+          this.setState({
+            replaceCount: this.state.replaceCount + p.target.length,
+          })
+          haystack.splice(p.on, p.target.length, ...p.target)
         }
-      }, index * delay)
+      }, index * DELAY)
     })
 
     setTimeout(() => {
       this.setState({
         compareL: undefined,
         compareR: undefined,
+        disabledExceptStop: false,
       })
-    }, playbook.length * delay)
-  }
-  handleClick() {
-    console.log('handleclick')
+    }, haystack.playbook.length * DELAY)
   }
 }
+
