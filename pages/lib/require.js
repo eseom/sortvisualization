@@ -34,7 +34,7 @@ Array.prototype.shuffle = function () {
 Array.prototype.replace = function (t, on) {
   const start = on.position
   t = t.map((o, i) => {
-    o.position = i + on.position
+    o.position = i + start
     return o
   })
   this.playbook.push({ type: 'replace', target: t, on: start })
@@ -44,16 +44,16 @@ Array.prototype.swap = function (x1, y1) {
   const x = x1.position
   const y = y1.position
 
-  const b = this[x];
-  this[x] = this[y];
-  this[y] = b;
+  const b = this[x]
+  this[x] = this[y]
+  this[y] = b
 
   const c = this[x].position
-  this[x].position = this[y].position;
-  this[y].position = c;
+  this[x].position = this[y].position
+  this[y].position = c
 
   this.playbook.push({ type: 'swap', x, y })
-  return this;
+  return this
 }
 Array.init = function (values) {
   const elements = values.map((value, index) => new Element(index, value))
